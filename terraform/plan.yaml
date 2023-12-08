@@ -1,0 +1,74 @@
+parameters:
+  - name: condition
+    type: string
+  - name: dependsOnStage
+    type: string
+  - name: environment
+    type: string
+  - name: serviceConnection
+    type: string
+  - name: terraformPath
+    type: string
+  - name: terraformVarFile
+    type: string
+
+stages:
+  - stage: plan
+    displayName: "Terraform plan: ${{ parameters.environment }}"
+    condition: and(succeeded(), ${{ parameters.condition }})
+    dependsOn: ${{ parameters.dependsOnStage }}
+    jobs:
+      - job: plan
+        displayName: "Terraform plan"
+
+        steps:
+
+          - checkout: self
+
+          - task: AzureCLI@2
+            displayName: "Terraform init"
+            inputs:
+              scriptType: bash
+              scriptLocation: inlineScript
+              azureSubscription: "${{ parameters.serviceConnection }}"
+              addSpnToEnvironment: true
+              workingDirectory: ${{ parameters.terraformPath }}
+              inlineScript: |
+                export ARM_CLIENT_ID=$servicePrincipalId
+                export ARM_CLIENT_SECRET=$servicePrincipalKey                
+                export ARM_SUBSCRIPTION_ID=$DEPLOYMENT_SUBSCRIPTION_ID
+                export ARM_TENANT_ID=$tenantId
+
+                terraform init \
+                  -backend-config="subscription_id=$TFSTATE_SUBSCRIPTION_ID" \
+                  -backend-config="resource_group_name=$TFSTATE_RESOURCE_GROUP_NAME" \
+                  -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT_NAME" \
+                  -backend-config="container_name=$TFSTATE_CONTAINER_NAME" \
+                  -backend-config="key=$TFSTATE_KEY"                  
+            env:
+              DEPLOYMENT_SUBSCRIPTION_ID: $(${{ parameters.environment }}DeploymentSubscriptionID)
+              TFSTATE_CONTAINER_NAME: $(TfstateContainerName)
+              TFSTATE_KEY: $(TfstateKey)
+              TFSTATE_RESOURCE_GROUP_NAME: $(TfstateResourceGroupName)
+              TFSTATE_STORAGE_ACCOUNT_NAME: $(TfstateStorageAccountName)
+              TFSTATE_SUBSCRIPTION_ID: $(TfstateSubscriptionID)
+
+          - task: AzureCLI@2
+            displayName: "Terraform plan"
+            inputs:
+              scriptType: bash
+              scriptLocation: inlineScript
+              azureSubscription: "${{ parameters.serviceConnection }}"
+              addSpnToEnvironment: true
+              workingDirectory: ${{ parameters.terraformPath }}
+              inlineScript: |
+                export ARM_CLIENT_ID=$servicePrincipalId
+                export ARM_CLIENT_SECRET=$servicePrincipalKey                
+                export ARM_SUBSCRIPTION_ID=$DEPLOYMENT_SUBSCRIPTION_ID
+                export ARM_TENANT_ID=$tenantId
+
+                terraform workspace select $(${{ parameters.environment }}TfWorkspaceName)
+
+                terraform plan -var-file '${{ parameters.terraformVarFile }}'
+            env:
+              DEPLOYMENT_SUBSCRIPTION_ID: $(${{ parameters.environment }}DeploymentSubscriptionID)

@@ -1,0 +1,44 @@
+parameters:
+  - name: terraformPath
+    type: string
+
+stages:
+  - stage: validate
+    displayName: "Terraform validate"
+    jobs:
+      - job: validate
+        displayName: "Terraform validate"
+
+        variables:
+          - name: terraformWorkingDirectory
+            value: $(System.DefaultWorkingDirectory)/${{ parameters.terraformPath }}
+
+        steps:
+          - checkout: self
+
+          - task: PowerShell@2
+            displayName: "Terraform init"
+            inputs:
+              targetType: 'inline'
+              pwsh: true
+              workingDirectory: $(terraformWorkingDirectory)
+              script: |
+                terraform init -backend=false
+
+          - task: PowerShell@2
+            displayName: "Terraform fmt"
+            inputs:
+              targetType: 'inline'
+              pwsh: true
+              workingDirectory: $(terraformWorkingDirectory)
+              script: |
+                terraform fmt -check -write=false -recursive
+
+          - task: PowerShell@2
+            displayName: "Terraform validate"
+            inputs:
+              targetType: 'inline'
+              pwsh: true
+              workingDirectory: $(terraformWorkingDirectory)
+              script: |
+                terraform validate       

@@ -1,0 +1,78 @@
+parameters:
+  - name: condition
+    type: string
+  - name: dependsOnStage
+    type: string
+  - name: environment
+    type: string
+  - name: serviceConnection
+    type: string
+  - name: terraformPath
+    type: string
+  - name: terraformVarFile
+    type: string
+
+stages:
+  - stage: apply
+    displayName: "Terraform apply: ${{ parameters.environment }}"
+    condition: and(succeeded(), ${{ parameters.condition }})
+    dependsOn: ${{ parameters.dependsOnStage }}
+    jobs:
+      - deployment: apply
+        displayName: "Terraform apply"
+        environment: "fusion-terraform-${{ parameters.environment }}"
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+      
+                - checkout: self
+      
+                - task: AzureCLI@2
+                  displayName: "Terraform init"
+                  inputs:
+                    scriptType: bash
+                    scriptLocation: inlineScript
+                    azureSubscription: "${{ parameters.serviceConnection }}"
+                    addSpnToEnvironment: true
+                    workingDirectory: ${{ parameters.terraformPath }}
+                    inlineScript: |
+                      export ARM_CLIENT_ID=$servicePrincipalId
+                      export ARM_CLIENT_SECRET=$servicePrincipalKey                
+                      export ARM_SUBSCRIPTION_ID=$DEPLOYMENT_SUBSCRIPTION_ID
+                      export ARM_TENANT_ID=$tenantId
+
+                      terraform init \
+                        -backend-config="subscription_id=$TFSTATE_SUBSCRIPTION_ID" \
+                        -backend-config="resource_group_name=$TFSTATE_RESOURCE_GROUP_NAME" \
+                        -backend-config="storage_account_name=$TFSTATE_STORAGE_ACCOUNT_NAME" \
+                        -backend-config="container_name=$TFSTATE_CONTAINER_NAME" \
+                        -backend-config="key=$TFSTATE_KEY"                  
+                  env:
+                    DEPLOYMENT_SUBSCRIPTION_ID: $(${{ parameters.environment }}DeploymentSubscriptionID)
+                    TFSTATE_CONTAINER_NAME: $(TfstateContainerName)
+                    TFSTATE_KEY: $(TfstateKey)
+                    TFSTATE_RESOURCE_GROUP_NAME: $(TfstateResourceGroupName)
+                    TFSTATE_STORAGE_ACCOUNT_NAME: $(TfstateStorageAccountName)
+                    TFSTATE_SUBSCRIPTION_ID: $(TfstateSubscriptionID)
+      
+                - task: AzureCLI@2
+                  displayName: "Terraform apply"
+                  inputs:
+                    scriptType: pscore
+                    scriptLocation: inlineScript
+                    azureSubscription: "${{ parameters.serviceConnection }}"
+                    addSpnToEnvironment: true
+                    workingDirectory: ${{ parameters.terraformPath }}
+                    inlineScript: |
+                      $env:ARM_CLIENT_ID=$env:servicePrincipalId
+                      $env:ARM_CLIENT_SECRET=$env:servicePrincipalKey                
+                      $env:ARM_SUBSCRIPTION_ID=$env:DEPLOYMENT_SUBSCRIPTION_ID
+                      $env:ARM_TENANT_ID=$env:tenantId
+      
+                      terraform workspace select $(${{ parameters.environment }}TfWorkspaceName)
+                    
+                      terraform apply -var-file '${{ parameters.terraformVarFile }}' -auto-approve
+                  env:
+                    DEPLOYMENT_SUBSCRIPTION_ID: $(${{ parameters.environment }}DeploymentSubscriptionID)
+      
