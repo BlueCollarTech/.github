@@ -1,7 +1,4 @@
-# .github
-SDLC-Pipeline-Templates
-
-# Repository Name
+# SDLC-Pipeline-Templates
 
 ## YAML Starter Templates for GitHub Actions Pipelines
 
